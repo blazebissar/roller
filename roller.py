@@ -6,24 +6,26 @@ The main module for the roller application. Command parsing resides here.
 import sys
 import utils
 
+
 def get_modifier(value):
     '''
     Function that returns the modifier for a skill of a given amount
     '''
+
     return (value - 10) // 2
+
 
 def perform_attack(args, character):
     '''
     Parses the commands ands executes the attack. Assumes a strength-based
     attack unless specified otherwise.
     '''
+
     # Variables to test for commands and their shorthands, also track modifications
     advantage_types = ['advantage', 'adv']
     disadvantage_types = ['disadvantage', 'dis']
     base_skill = 'strength'
     advantage_status = ''
-
-    print(args)
 
     # When only specifying advantage/disadvantage or a non-strength stat to use
     if len(args) == 1:
@@ -41,6 +43,7 @@ def perform_attack(args, character):
         if args[0] not in all_words or args[1] not in all_words:
             print('Error: expected advantage/disadvantage or base skill')
             return
+
         if args[0] in advantage_types + disadvantage_types:
             advantage_status = args[0]
             base_skill = args[1]
@@ -121,6 +124,47 @@ def handle_skill(args, character):
 
     print('%s check rolled a %d with a natural %d' % (skill, res, nat_res))
 
+
+def deal_damage(args, character, crit_mul):
+    '''
+    Function that calculates damage for a given roll, to include multiple
+    types of damage/dice
+    Assumes input will be a comma seperated list of dice groups and an optional
+    corresponding comma seperated list of skill modifiers. For instance:
+    ./roller damage 3d4,2d6,1d8 strength,charisma,strength or
+    ./roller damage 3d4,2d6
+    where the second defaults to strength for all values
+    '''
+
+    # Variables for tracking damage characteristics
+    dice_list = []
+    stat_list = []
+
+    if len(args) == 1:
+        dice_list = args[0].split(',')
+        stat_list = ['strength'] * len(dice_list)
+    elif len(args) == 2:
+        dice_list = args[0].split(',')
+        stat_list = args[1].split(',')
+        if len(stat_list) != len(dice_list):
+            print('Error: if providing a stat modifier list, you must provide the ' \
+                    'same number of modifiers as the dice list')
+            return
+    else:
+        print('Error: expected one or two arguments')
+        return
+
+    # Calculate total damage
+    total = 0
+    for die, stat in zip(dice_list, stat_list):
+        quantity, die_type = die.split('d')
+        modifier = get_modifier(int(character.traits[stat]))
+
+        total += utils.damage_roll(int(quantity), int(die_type), modifier, crit_mul)
+
+    print('Rolled a total of %d damage' % total)
+
+
 def process_args(args, character='character.txt'):
     '''
     Function that processes arguments, allowing for a more free-form input
@@ -161,6 +205,7 @@ def process_args(args, character='character.txt'):
     commands = [
         'attack',
         'damage',
+        'critical',
         'autogen',
         'gen'
         ]
@@ -173,11 +218,13 @@ def process_args(args, character='character.txt'):
         handle_skill(args, player_char)
     # Otherwise it is a command
     elif first in commands:
+        player_char = utils.Character.from_file(character)
         if first == 'attack':
-            player_char = utils.Character.from_file(character)
             perform_attack(args[1::], player_char)
         elif first == 'damage':
-            print('Pending implementation')
+            deal_damage(args[1::], player_char, 1)
+        elif first == 'critical':
+            deal_damage(args[1::], player_char, 2)
         elif first == 'gen':
             print('Pending implementation')
         elif first == 'autogen':
@@ -186,6 +233,7 @@ def process_args(args, character='character.txt'):
             pass
     else:
         print("Error: command %s is invalid" % first)
+
 
 def main():
     '''
